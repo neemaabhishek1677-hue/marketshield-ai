@@ -2,9 +2,38 @@
 
 **AI-Based Market Manipulation & Insider Trading Detection Platform**
 
-A hackathon-grade market surveillance workstation that detects trade anomalies, sentiment-driven manipulation, pump-and-dump risk, and insider-linked trading clusters — with explainable alerts and interactive investigation views.
+A market surveillance workstation that detects trade anomalies, sentiment-driven manipulation, pump-and-dump risk, and insider-linked trading clusters — with explainable alerts and interactive investigation views.
 
-> **Disclaimer:** All data is **synthetic**. Outputs are surveillance signals for demo and compliance-style review — **not** legal conclusions or investment advice.
+**Now upgraded with real market data, company news, and SEC filings powered by Finnhub and SEC EDGAR APIs.**
+
+> **Disclaimer:** This is a **surveillance-support prototype**. Outputs are signals for research and compliance review — **not** legal conclusions, investment advice, or proof of wrongdoing.
+
+---
+
+## 🆕 Real Data Upgrade (May 2026)
+
+This platform has been upgraded from **fully synthetic data** to **hybrid real-data mode**:
+
+| Component | Data Source | Real? |
+|-----------|------------|-------|
+| Stock prices & volume | Finnhub API | ✅ Yes |
+| Company news | Finnhub API | ✅ Yes |
+| Corporate filings & events | SEC EDGAR | ✅ Yes |
+| Market sentiment | Real headlines + VADER NLP | ✅ Yes |
+| Trader/entity relationships | NetworkX synthetic graph | ⚠️ Hybrid |
+| Trading activity | Synthetic pattern generation | ⚠️ Simulated* |
+
+*Account-level trading data is not publicly available; the platform uses real market context (prices, news, events) combined with simulated trader behavior to demonstrate surveillance logic.
+
+### What Changed
+
+1. **Real Market Candles**: Historical daily OHLCV data from Finnhub for your watchlist
+2. **Real Company News**: Fetch and analyze actual headlines from news feeds
+3. **Real SEC Filings**: 10-K, 10-Q, 8-K events linked to market windows
+4. **Real Sentiment**: NLP-based sentiment scoring on actual news
+5. **Scheduled Ingestion**: Automated data sync (market hourly, news daily, filings weekly)
+6. **Event Windows**: Real financial events tied to market anomaly analysis
+7. **New API Endpoints**: `/ingestion/sync/*`, `/market-data/`, `/news/`, `/filings/`, etc.
 
 ---
 
@@ -12,16 +41,16 @@ A hackathon-grade market surveillance workstation that detects trade anomalies, 
 
 | Module | What it does |
 |--------|----------------|
-| Market dashboard | KPIs, anomaly timeline, sector risk, alert feed, pump watchlist |
-| Trade anomaly engine | Rule heuristics + Isolation Forest with feature drivers |
-| News sentiment | VADER + hype / misinformation tone scoring |
-| Social intelligence | Coordinated hype bursts, bot-like posting patterns |
-| Pump-and-dump prediction | Multi-signal early warning per ticker |
-| Insider graph | NetworkX analytics + React Flow network explorer |
-| Risk fusion | Unified stock/trader score with natural-language explanations |
-| Alert queue | Severity, confidence, status workflow (new → escalated → resolved) |
-| Heatmaps | Sector, stock, event-window, sentiment, social coordination |
-| Demo control | One-click seed + 4 judge-ready walkthrough scenarios |
+| **Real market dashboard** | KPIs from real prices, real news feed, real event calendar |
+| **Trade anomaly engine** | Rule heuristics + Isolation Forest on real market features |
+| **Real news sentiment** | VADER + finance-aware tone analysis on actual headlines |
+| **Social intelligence** | Coordinated hype bursts, bot-like posting patterns (synthetic simulation) |
+| **Pump-and-dump prediction** | Multi-signal early warning using real volume + news context |
+| **Insider graph** | NetworkX analytics + React Flow network explorer (simulated entity layer) |
+| **Risk fusion** | Unified stock/trader score with natural-language explanations |
+| **Alert queue** | Severity, confidence, status workflow (new → escalated → resolved) |
+| **Heatmaps** | Sector, stock, event-window, real sentiment, social coordination |
+| **Data ingestion** | Scheduled sync from Finnhub, SEC EDGAR, optional Polygon/Alpha Vantage |
 
 ---
 
@@ -30,7 +59,9 @@ A hackathon-grade market surveillance workstation that detects trade anomalies, 
 | Layer | Technologies |
 |-------|----------------|
 | Backend | Python 3.12+, FastAPI, SQLAlchemy, scikit-learn, NetworkX, VADER |
-| Database | **SQLite** (default, no install) · PostgreSQL (optional, Docker) |
+| Data Providers | Finnhub, SEC EDGAR API, optional Polygon.io, Alpha Vantage, GDELT |
+| Ingestion | APScheduler, httpx, async pipelines |
+| Database | **SQLite** (default, no install) · PostgreSQL (optional) |
 | Frontend | React, Vite, Tailwind CSS, Recharts, React Flow |
 | Tooling | pytest, Docker Compose (optional) |
 
@@ -41,6 +72,11 @@ A hackathon-grade market surveillance workstation that detects trade anomalies, 
 - **Python 3.12+** — [python.org](https://www.python.org/downloads/) or Microsoft Store
 - **Node.js 18+** — [nodejs.org](https://nodejs.org/)
 - **Docker Desktop** — optional only; not required for local run
+- **API Keys** (optional for real-data mode):
+  - [Finnhub](https://finnhub.io) — Free tier available (~60 req/min)
+  - SEC EDGAR — No key needed (public API)
+  - [Polygon.io](https://polygon.io) — Optional for real-time
+  - [Alpha Vantage](https://www.alphavantage.co) — Optional fallback
 
 ---
 
@@ -73,18 +109,36 @@ Verify: http://localhost:8001/docs
 
 ---
 
-### Terminal 2 — Seed demo data
+### Terminal 2 — Optional: Add your API keys and sync real data
+
+Edit `.env` with your API keys:
+
+```bash
+FINNHUB_API_KEY=your_key_here
+SEC_USER_AGENT=MarketShieldAI/1.0 your-email@example.com
+```
+
+Then sync real data:
+
+```powershell
+# Sync real market data
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/market" -Method POST
+
+# Sync real company news
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/news" -Method POST
+
+# Sync real SEC filings
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/filings" -Method POST
+
+# Check ingestion status
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/status" -Method GET
+```
+
+**Or generate demo data with synthetic trader patterns:**
 
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8001/api/v1/seed/generate-demo-data" -Method POST -ContentType "application/json" -Body '{"days": 30}'
 ```
-
-**Success response** includes roughly:
-
-- `stocks: 8`
-- `traders: 40`
-- `trades: 785`
-- `alerts: 4`
 
 ---
 
@@ -193,6 +247,113 @@ VITE_API_URL=http://localhost:8001
 **PostgreSQL (Docker or local Postgres):** uncomment the `postgresql://` lines in `.env.example` and use port `8000` or `8001` consistently.
 
 ---
+
+## Real-Data Configuration
+
+### Get Your API Keys
+
+#### Finnhub (for market data & news)
+
+1. Visit https://finnhub.io → Sign up (free)
+2. Copy API key
+3. Add to `.env`:
+
+```bash
+FINNHUB_API_KEY=your_finnhub_key_here
+```
+
+#### SEC EDGAR (for filings/events — no key needed)
+
+Add your user agent to `.env`:
+
+```bash
+SEC_USER_AGENT=MarketShieldAI/1.0 your-email@example.com
+```
+
+#### Polygon.io (Optional — real-time streaming)
+
+Add to `.env`:
+
+```bash
+POLYGON_API_KEY=your_polygon_key_here
+```
+
+#### Alpha Vantage (Optional — fallback data)
+
+Add to `.env`:
+
+```bash
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here
+```
+
+### Configure Watchlist & Ingestion
+
+```bash
+# Comma-separated tickers (real symbols only)
+DEFAULT_WATCHLIST=AAPL,MSFT,NVDA,TSLA,AMZN
+
+# Ingestion frequency (minutes)
+MARKET_SYNC_INTERVAL=30
+NEWS_SYNC_INTERVAL=60
+FILINGS_SYNC_INTERVAL=1440
+
+# Enable/disable
+MARKET_SYNC_ENABLED=true
+NEWS_SYNC_ENABLED=true
+FILINGS_SYNC_ENABLED=true
+```
+
+### Test Real-Data Ingestion
+
+After adding API keys and restarting backend:
+
+```powershell
+# Sync market data
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/market" -Method POST
+
+# Check status
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/status" -Method GET
+
+# Query real data
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/market-data/AAPL?days=30" -Method GET
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/news/AAPL?limit=5" -Method GET
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/filings/AAPL" -Method GET
+```
+
+**Scheduler automatically syncs data** on the configured intervals — no manual action needed after startup.
+
+---
+
+## New Ingestion & Real-Data API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/ingestion/sync/market` | POST | Fetch real OHLCV bars (Finnhub) |
+| `/ingestion/sync/news` | POST | Fetch real news articles (Finnhub) |
+| `/ingestion/sync/filings` | POST | Fetch real SEC filings (EDGAR) |
+| `/ingestion/status` | GET | View ingestion run history |
+| `/market-data/{symbol}` | GET | Query stored market bars |
+| `/news/{symbol}` | GET | Query stored news articles |
+| `/filings/{symbol}` | GET | Query stored SEC filings |
+
+---
+
+## Architecture: Hybrid Real + Synthetic
+
+```
+┌──────────────────────────────────────────┐
+│     MarketShield AI (Real-Data Hybrid)   │
+├──────────────────────────────────────────┤
+│ ✅ REAL: Market bars, news, filings      │
+│ ⚠️  HYBRID: Features, anomaly detection   │
+│ 🔄 SYNTHETIC: Traders, entity graph      │
+│ 📊 ANALYTICS: Unified risk scores        │
+└──────────────────────────────────────────┘
+```
+
+---
+
+
 
 ## API reference
 

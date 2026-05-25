@@ -21,6 +21,7 @@ from app.models.entities import (
     Stock,
     Trade,
     Trader,
+    IngestionRun,
 )
 from app.schemas.alerts import AlertCommentCreate, AlertCommentOut, AlertDetail, AlertOut, AlertUpdate
 from app.schemas.common import DemoScenario, HealthResponse, SeedRequest, SeedResponse
@@ -29,6 +30,11 @@ from app.seed.demo_generator import DemoDataGenerator, SCENARIOS
 from app.services.analytics import AnalyticsService
 from app.services.insights import InsightsService
 from app.ml.anomaly import AnomalyEngine
+from app.services.ingestion import (
+    MarketIngestionService,
+    NewsIngestionService,
+    FilingsIngestionService,
+)
 
 router = APIRouter()
 analytics = AnalyticsService()
@@ -38,6 +44,11 @@ pump_engine = PumpDumpEngine()
 graph_analyzer = InsiderGraphAnalyzer()
 anomaly_engine = AnomalyEngine()
 demo_gen = DemoDataGenerator()
+
+# Real-data ingestion services
+market_ingestion = MarketIngestionService()
+news_ingestion = NewsIngestionService()
+filings_ingestion = FilingsIngestionService()
 
 alert_connections: list[WebSocket] = []
 
@@ -421,3 +432,236 @@ async def stream_alerts(websocket: WebSocket):
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         alert_connections.remove(websocket)
+
+
+# ===== REAL-DATA INGESTION ENDPOINTS (NEW) =====
+
+
+@router.post("/ingestion/sync/market")
+async def sync_market_data(
+    symbols: list[str] | None = None,
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fetch real market OHLCV data from Finnhub and store in database.
+    If symbols not provided, uses DEFAULT_WATCHLIST from config.
+    """
+    try:
+        stats = await market_ingestion.sync_market_data(db, symbols=symbols, days=days)
+        return {
+            "status": "success",
+            "run_id": stats["run_id"],
+            "symbols_processed": stats["symbols_processed"],
+            "records_created": stats["records_created"],
+            "records_updated": stats["records_updated"],
+            "records_skipped": stats["records_skipped"],
+            "errors": stats["errors"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Market ingestion failed: {str(e)}")
+
+
+@router.post("/ingestion/sync/news")
+async def sync_news(
+    symbols: list[str] | None = None,
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fetch real company news from Finnhub and store in database.
+    If symbols not provided, uses DEFAULT_WATCHLIST from config.
+    """
+    try:
+        stats = await news_ingestion.sync_news(db, symbols=symbols, days=days)
+        return {
+            "status": "success",
+            "run_id": stats["run_id"],
+            "symbols_processed": stats["symbols_processed"],
+            "records_created": stats["records_created"],
+            "records_updated": stats["records_updated"],
+            "records_skipped": stats["records_skipped"],
+            "errors": stats["errors"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"News ingestion failed: {str(e)}")
+
+
+@router.post("/ingestion/sync/filings")
+async def sync_filings(
+    symbols: list[str] | None = None,
+    days: int = Query(365, ge=1, le=3650),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Fetch real SEC filings and events for symbols and store in database.
+    If symbols not provided, uses DEFAULT_WATCHLIST from config.
+    """
+    try:
+        stats = await filings_ingestion.sync_filings(db, symbols=symbols, days=days)
+        return {
+            "status": "success",
+            "run_id": stats["run_id"],
+            "symbols_processed": stats["symbols_processed"],
+            "records_created": stats["records_created"],
+            "records_updated": stats["records_updated"],
+            "records_skipped": stats["records_skipped"],
+            "errors": stats["errors"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Filings ingestion failed: {str(e)}")
+
+
+@router.get("/ingestion/status")
+async def ingestion_status(
+    limit: int = Query(10, ge=1, le=100),
+    ingestion_type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get status of recent ingestion runs.
+    """
+    q = select(IngestionRun).order_by(IngestionRun.started_at.desc()).limit(limit)
+    if ingestion_type:
+        q = q.where(IngestionRun.ingestion_type == ingestion_type)
+    
+    runs = (await db.execute(q)).scalars().all()
+    return {
+        "runs": [
+            {
+                "id": r.id,
+                "ingestion_type": r.ingestion_type,
+                "provider": r.provider,
+                "status": r.status,
+                "symbols_processed": r.symbols_processed,
+                "records_created": r.records_created,
+                "records_updated": r.records_updated,
+                "records_skipped": r.records_skipped,
+                "error_message": r.error_message,
+                "started_at": r.started_at.isoformat(),
+                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            }
+            for r in runs
+        ]
+    }
+
+
+@router.get("/market-data/{symbol}")
+async def get_market_data(
+    symbol: str,
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get real market bars for a symbol from database.
+    """
+    from app.models.entities import MarketBarDaily
+    
+    bars = (
+        await db.execute(
+            select(MarketBarDaily)
+            .where(MarketBarDaily.symbol == symbol.upper())
+            .order_by(MarketBarDaily.date.desc())
+            .limit(days)
+        )
+    ).scalars().all()
+    
+    if not bars:
+        raise HTTPException(status_code=404, detail=f"No market data for {symbol}")
+    
+    return {
+        "symbol": symbol.upper(),
+        "bars": [
+            {
+                "date": b.date.isoformat(),
+                "open": b.open,
+                "high": b.high,
+                "low": b.low,
+                "close": b.close,
+                "volume": b.volume,
+                "provider": b.provider,
+            }
+            for b in sorted(bars, key=lambda x: x.date)
+        ],
+    }
+
+
+@router.get("/news/{symbol}")
+async def get_news(
+    symbol: str,
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get real company news for a symbol from database.
+    """
+    from app.models.entities import RealNews
+    
+    news_items = (
+        await db.execute(
+            select(RealNews)
+            .where(RealNews.symbol == symbol.upper())
+            .order_by(RealNews.published_at.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
+    
+    if not news_items:
+        raise HTTPException(status_code=404, detail=f"No news for {symbol}")
+    
+    return {
+        "symbol": symbol.upper(),
+        "news": [
+            {
+                "headline": n.headline,
+                "url": n.url,
+                "summary": n.summary,
+                "published_at": n.published_at.isoformat(),
+                "source": n.source,
+                "provider": n.provider,
+            }
+            for n in news_items
+        ],
+    }
+
+
+@router.get("/filings/{symbol}")
+async def get_filings(
+    symbol: str,
+    days: int = Query(365, ge=1, le=3650),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get real SEC filings and events for a symbol from database.
+    """
+    from app.models.entities import RealFilingEvent
+    
+    filings = (
+        await db.execute(
+            select(RealFilingEvent)
+            .where(RealFilingEvent.symbol == symbol.upper())
+            .order_by(RealFilingEvent.event_date.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
+    
+    if not filings:
+        raise HTTPException(status_code=404, detail=f"No filings for {symbol}")
+    
+    return {
+        "symbol": symbol.upper(),
+        "filings": [
+            {
+                "event_type": f.event_type,
+                "event_date": f.event_date.isoformat(),
+                "filing_date": f.filing_date.isoformat() if f.filing_date else None,
+                "title": f.title,
+                "filing_url": f.filing_url,
+                "summary": f.summary,
+                "provider": f.provider,
+            }
+            for f in filings
+        ],
+    }

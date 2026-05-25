@@ -6,18 +6,32 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.core.config import get_settings
-from app.core.database import Base, engine
+from app.core.database import Base, engine, AsyncSessionLocal
 
 settings = get_settings()
+scheduler = None  # Lazy initialization
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
+    global scheduler
+    from app.services.scheduler_service import IngestionScheduler
+    
     if settings.is_sqlite:
         Path("data").mkdir(parents=True, exist_ok=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    
+    # Initialize and start scheduler
+    scheduler = IngestionScheduler()
+    await scheduler.initialize(AsyncSessionLocal)
+    
     yield
+    
+    # Shutdown
+    if scheduler:
+        await scheduler.shutdown()
     await engine.dispose()
 
 
@@ -45,5 +59,5 @@ async def root():
         "product": "MarketShield AI",
         "docs": "/docs",
         "api": "/api/v1",
-        "disclaimer": "Surveillance demo using synthetic data — not legal or investment advice.",
+        "disclaimer": "Market surveillance platform with real market data and simulated entity layer — not legal or investment advice.",
     }

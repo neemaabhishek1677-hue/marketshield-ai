@@ -256,3 +256,172 @@ class ModelRun(Base):
     metrics_json: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ===== REAL-DATA INGESTION TABLES =====
+
+
+class WatchlistItem(Base):
+    """Curated watchlist of symbols to monitor via real-data providers."""
+    __tablename__ = "watchlist_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    company_name: Mapped[str] = mapped_column(String(256))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=1)  # 1=high, 2=medium, 3=low
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class MarketBarDaily(Base):
+    """Real daily OHLCV bars from providers like Finnhub."""
+    __tablename__ = "market_bars_daily"
+    __table_args__ = (
+        Index("ix_market_bars_daily_symbol_date", "symbol", "date"),
+        Index("ix_market_bars_daily_provider_ts", "provider", "date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
+    provider: Mapped[str] = mapped_column(String(32))  # "finnhub", "polygon", etc.
+    source_id: Mapped[str] = mapped_column(String(128), unique=True)  # For deduplication
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MarketBarIntraday(Base):
+    """Real intraday (minute/hour) bars from providers."""
+    __tablename__ = "market_bars_intraday"
+    __table_args__ = (
+        Index("ix_market_bars_intraday_symbol_ts", "symbol", "timestamp"),
+        Index("ix_market_bars_intraday_provider_ts", "provider", "timestamp"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    interval_minutes: Mapped[int] = mapped_column(Integer)  # 1, 5, 15, 60, etc.
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
+    provider: Mapped[str] = mapped_column(String(32))
+    source_id: Mapped[str] = mapped_column(String(128), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RealNews(Base):
+    """Real company news from providers like Finnhub."""
+    __tablename__ = "real_news"
+    __table_args__ = (
+        Index("ix_real_news_symbol_ts", "symbol", "published_at"),
+        Index("ix_real_news_provider_ts", "provider", "published_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    headline: Mapped[str] = mapped_column(String(512))
+    url: Mapped[str | None] = mapped_column(String(1024))
+    summary: Mapped[str | None] = mapped_column(Text)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    source: Mapped[str] = mapped_column(String(128))  # e.g., "Reuters", "Bloomberg"
+    provider: Mapped[str] = mapped_column(String(32))  # "finnhub", etc.
+    source_id: Mapped[str] = mapped_column(String(128), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RealFilingEvent(Base):
+    """Real corporate filings and events from SEC EDGAR."""
+    __tablename__ = "real_filing_events"
+    __table_args__ = (
+        Index("ix_real_filing_events_symbol_ts", "symbol", "event_date"),
+        Index("ix_real_filing_events_type", "event_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)  # "10-K", "8-K", "earnings", etc.
+    event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    filing_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    title: Mapped[str | None] = mapped_column(String(512))
+    filing_url: Mapped[str | None] = mapped_column(String(1024))
+    summary: Mapped[str | None] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(32))  # "sec_edgar", etc.
+    source_id: Mapped[str] = mapped_column(String(128), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SentimentScore(Base):
+    """Real sentiment analysis on headlines and news."""
+    __tablename__ = "sentiment_scores"
+    __table_args__ = (
+        Index("ix_sentiment_symbol_ts", "symbol", "created_at"),
+        Index("ix_sentiment_provider_ts", "provider", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    sentiment: Mapped[str] = mapped_column(String(16))  # "positive", "negative", "neutral"
+    sentiment_score: Mapped[float] = mapped_column(Float)  # -1 to 1
+    headline_count: Mapped[int] = mapped_column(Integer)  # # of headlines aggregated
+    time_window_hours: Mapped[int] = mapped_column(Integer, default=24)
+    provider: Mapped[str] = mapped_column(String(32))  # "finnhub_nlp", "finbert", etc.
+    source_ids: Mapped[str] = mapped_column(Text)  # JSON list of contributing source IDs
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MarketFeature(Base):
+    """Computed market features for anomaly detection and risk scoring."""
+    __tablename__ = "market_features"
+    __table_args__ = (
+        Index("ix_market_features_symbol_ts", "symbol", "date"),
+        Index("ix_market_features_feature_type", "feature_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    feature_type: Mapped[str] = mapped_column(String(64), index=True)  # e.g., "daily_return", "volume_zscore"
+    feature_value: Mapped[float] = mapped_column(Float)
+    metadata_json: Mapped[str | None] = mapped_column(Text)  # Additional context
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IngestionRun(Base):
+    """Audit log of ingestion pipeline runs."""
+    __tablename__ = "ingestion_runs"
+    __table_args__ = (Index("ix_ingestion_runs_type_ts", "ingestion_type", "started_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ingestion_type: Mapped[str] = mapped_column(String(32), index=True)  # "market", "news", "filings"
+    provider: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32))  # "pending", "running", "success", "failed"
+    symbols_processed: Mapped[int] = mapped_column(Integer, default=0)
+    records_created: Mapped[int] = mapped_column(Integer, default=0)
+    records_updated: Mapped[int] = mapped_column(Integer, default=0)
+    records_skipped: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProviderRawPayload(Base):
+    """Optional storage of raw API responses for debugging and audit."""
+    __tablename__ = "provider_raw_payloads"
+    __table_args__ = (Index("ix_provider_payloads_type_ts", "provider", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    endpoint: Mapped[str] = mapped_column(String(256))
+    symbol: Mapped[str | None] = mapped_column(String(16), index=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
