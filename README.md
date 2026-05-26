@@ -80,90 +80,183 @@ This platform has been upgraded from **fully synthetic data** to **hybrid real-d
 
 ---
 
-## Quick start (Windows — recommended)
+## 📋 Step-by-Step Installation Guide (Windows)
 
-Use **3 terminals**. Default database is SQLite — no PostgreSQL or Docker needed.
+Follow these 14 steps to get MarketShield AI running locally. **You will need 3 PowerShell terminals.**
 
-### Terminal 1 — Backend API
+### **Prerequisites Check**
 
+**Step 1:** Verify Python is installed and version 3.12+
 ```powershell
-cd c:\Users\arvin\Downloads\Codeathon_cursor\marketshield-ai
-copy .env.example .env
-
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --port 8001
+python --version
 ```
+Expected output: `Python 3.12.x` or higher
 
-> **Port note:** If port `8000` fails with `WinError 10013`, use **8001** (or 8080) as shown above.
-
-Wait until you see:
-
-```text
-Uvicorn running on http://127.0.0.1:8001
+**Step 2:** Verify Node.js and npm are installed
+```powershell
+node --version
+npm --version
 ```
+Expected output: Node 18+ and npm 9+
 
-Verify: http://localhost:8001/docs
+If either is missing, install from [python.org](https://www.python.org/downloads/) and [nodejs.org](https://nodejs.org/)
 
 ---
 
-### Terminal 2 — Optional: Add your API keys and sync real data
+### **Backend Setup (Terminal 1)**
 
-Edit `.env` with your API keys:
-
-```bash
-FINNHUB_API_KEY=your_key_here
-SEC_USER_AGENT=MarketShieldAI/1.0 your-email@example.com
-```
-
-Then sync real data:
-
+**Step 3:** Navigate to the backend directory
 ```powershell
-# Sync real market data
-Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/market" -Method POST
-
-# Sync real company news
-Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/news" -Method POST
-
-# Sync real SEC filings
-Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/sync/filings" -Method POST
-
-# Check ingestion status
-Invoke-RestMethod -Uri "http://localhost:8001/api/v1/ingestion/status" -Method GET
+cd c:\Users\arvin\Downloads\Codeathon_cursor\marketshield-ai\backend
 ```
 
-**Or generate demo data with synthetic trader patterns:**
+**Step 4:** Create a Python virtual environment
+```powershell
+python -m venv .venv
+```
+⏳ This creates a `.venv` folder (takes ~30 seconds)
+
+**Step 5:** Activate the virtual environment
+
+**Option A (Recommended for Windows):**
+```powershell
+.venv\Scripts\activate.bat
+```
+
+**Option B (If .bat fails):**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+.venv\Scripts\activate
+```
+
+✅ **Expected:** Your prompt should now show `(.venv)` at the beginning
+
+Example:
+```powershell
+(.venv) PS C:\Users\arvin\Downloads\Codeathon_cursor\marketshield-ai\backend>
+```
+
+**Step 6:** Install Python dependencies
+```powershell
+pip install -r requirements.txt
+```
+⏳ This takes ~2-3 minutes. Wait for `Successfully installed...`
+
+**Step 7:** Start the backend API server
+```powershell
+python -m uvicorn app.main:app --reload --port 8001
+```
+
+✅ **Expected output:**
+```
+INFO:     Uvicorn running on http://127.0.0.1:8001
+INFO:     Application startup complete
+```
+
+**Step 8:** Verify the backend is running
+- Open your browser and go to: **http://localhost:8001/docs**
+- You should see Swagger API documentation
+- ✅ Keep this terminal open
+
+---
+
+### **Frontend Setup (Terminal 2 — New PowerShell)**
+
+**Step 9:** Open a **new PowerShell terminal** and navigate to frontend
+```powershell
+cd c:\Users\arvin\Downloads\Codeathon_cursor\marketshield-ai\frontend
+```
+
+**Step 10:** Set the backend API URL environment variable
+```powershell
+$env:VITE_API_URL="http://localhost:8001"
+```
+
+**Step 11:** Install npm packages
+
+**Use .cmd version (recommended for Windows):**
+```powershell
+npm.cmd install
+```
+
+If you get a PowerShell script execution error, this `.cmd` version bypasses it automatically.
+
+✅ **Expected:** Ends with `added X packages`
+
+**Step 12:** Start the frontend development server
+```powershell
+npm.cmd run dev
+```
+
+✅ **Expected output:**
+```
+Local:        http://localhost:5173
+```
+
+**Step 13:** Open the application in your browser
+- Navigate to: **http://localhost:5173**
+- You should see the MarketShield AI dashboard
+- ✅ Keep this terminal open
+
+---
+
+### **Load Demo Data (Terminal 3 — New PowerShell)**
+
+**Step 14:** Generate synthetic demo data (optional but recommended for first run)
+
+Open a **third PowerShell terminal** (Terminal 1 and 2 should still be running) and run:
 
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8001/api/v1/seed/generate-demo-data" -Method POST -ContentType "application/json" -Body '{"days": 30}'
 ```
 
----
-
-### Terminal 3 — Frontend UI
-
-```powershell
-cd c:\Users\arvin\Downloads\Codeathon_cursor\marketshield-ai\frontend
-$env:VITE_API_URL="http://localhost:8001"
-npm.cmd install
-npm.cmd run dev
+✅ **Expected output:**
+```
+status  : success
+message : Demo data generated successfully
 ```
 
-> **PowerShell script error?** If `npm run dev` says scripts are disabled, use **`npm.cmd`** instead of `npm` (see [Troubleshooting](#troubleshooting-windows)).
-
-Open: **http://localhost:5173**
+Then refresh your browser at **http://localhost:5173** to see the dashboard populated with data.
 
 ---
 
-### First launch checklist
+### **First Launch Verification Checklist**
 
-1. Backend running on **8001** ✓  
-2. Seed command returned success ✓  
-3. Frontend open at http://localhost:5173 ✓  
-4. Go to **Demo Control** → **Generate demo data** (if dashboard is empty)  
-5. Open **Dashboard** — confirm KPIs, charts, and alerts appear  
+| ✓ | Step | Verification |
+|---|------|--------------|
+| [ ] | Step 1-2 | Python 3.12+ and Node 18+ installed |
+| [ ] | Step 7 | Backend running at http://localhost:8001/docs |
+| [ ] | Step 12 | Frontend running at http://localhost:5173 |
+| [ ] | Step 14 | Demo data generated successfully |
+| [ ] | Dashboard | See KPIs, charts, and alert data |
+
+---
+
+### **Quick Troubleshooting During Setup**
+
+| Problem | Solution |
+|---------|----------|
+| **Step 5:** Script execution error | Use `.venv\Scripts\activate.bat` instead |
+| **Step 11:** npm script error | Use `npm.cmd install` instead of `npm install` |
+| **Step 12:** npm run dev fails | Use `npm.cmd run dev` instead of `npm run dev` |
+| **Step 7:** Port 8001 already in use | Use `--port 8080` instead |
+| **Step 13:** Dashboard is empty | Run Step 14 (generate demo data) |
+| **Step 13:** Frontend can't reach API | Verify Terminal 1 is running and Step 10 was executed |
+
+---
+
+## Quick start (Windows — recommended)
+
+**Follow the 14 steps in [Step-by-Step Installation Guide](#-step-by-step-installation-guide-windows) above.**
+
+Default database is SQLite — no PostgreSQL or Docker needed. You'll need **3 PowerShell terminals**.
+
+**TL;DR:**
+1. Terminal 1: Backend — `python -m venv .venv` → `.venv\Scripts\activate.bat` → `pip install -r requirements.txt` → `python -m uvicorn app.main:app --reload --port 8001`
+2. Terminal 2: Frontend — `npm.cmd install` → `npm.cmd run dev`
+3. Terminal 3: Seed data — `Invoke-RestMethod -Uri "http://localhost:8001/api/v1/seed/generate-demo-data" -Method POST -ContentType "application/json" -Body '{"days": 30}'`
+
+Then open **http://localhost:5173** in your browser.  
 
 ---
 
@@ -417,13 +510,15 @@ python -m pytest tests/ -v
 
 | Problem | Fix |
 |---------|-----|
-| `docker` not recognized | Docker not installed — use local SQLite setup (this README’s quick start) |
+| **PowerShell script execution error** (.venv\Scripts\activate) | Use `.venv\Scripts\activate.bat` instead, or run `Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process` |
+| **npm script execution error** | Use `npm.cmd install` and `npm.cmd run dev` instead of `npm` and `npm run dev` |
+| `docker` not recognized | Docker not installed — use local SQLite setup (this README's quick start) |
 | `uvicorn` not recognized | Use `python -m uvicorn app.main:app --reload --port 8001` |
 | `WinError 10013` on port 8000 | Port blocked — use **8001** and set `$env:VITE_API_URL="http://localhost:8001"` |
-| `npm` / scripts disabled (PowerShell) | Use `npm.cmd install` and `npm.cmd run dev` |
 | Seed returns **Internal Server Error** | Restart backend after pulling latest code; ensure Terminal 1 is running |
 | Empty dashboard | Run seed again or use **Demo Control → Generate demo data** |
-| Frontend can’t reach API | Set `$env:VITE_API_URL` to your backend URL before `npm.cmd run dev` |
+| Frontend can't reach API | Set `$env:VITE_API_URL` to your backend URL before `npm.cmd run dev` |
+| `ModuleNotFoundError` in backend | Verify `.venv\Scripts\activate.bat` was run and pip install completed |
 | `gradio` / `multipart` pip warning | Use project `.venv` — avoids global package conflicts |
 
 ---
